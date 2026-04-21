@@ -33,11 +33,64 @@ When responding to an email:
 
 Do not include greetings or preambles — start with the response directly.`
 
-function isFlagged(subject: string, body: string): { flagged: boolean; keywords: string[] } {
-  const text = `${subject} ${body}`.toLowerCase()
-  const found = ENTERPRISE_KEYWORDS.filter(kw => text.includes(kw))
-  return { flagged: found.length > 0, keywords: found }
+// ─── Payload normalisation ────────────────────────────────────────────────────
+// Accepts: Cloudflare Email Worker JSON, Resend inbound, Postmark, SendGrid, raw
+
+interface NormalisedEmail {
+  sender: string
+  subject: string
+  body: string
 }
+
+function normalisePayload(payload: Record<string, unknown>): NormalisedEmail | null {
+  // Cloudflare Worker / simple JSON: { from, subject, text }
+  if (typeof payload.from === 'string' || typeof payload.sender === 'string') {
+    const sender = String(payload.from || payload.sender || '').trim()
+    const subject = String(payload.subject || '(no subject)').trim()
+    const body = String(
+      payload.text ||
+      (typeof payload.html === 'string' ? payload.html.replace(/<[^>]+>/g, ' ') : '') ||
+      ''
+    ).trim()
+    if (sender) return { sender, subject, body }
+  }
+
+  // Postmark: { From, Subject, TextBody, HtmlBody }
+  if (typeof payload.From === 'string') {
+    return {
+      sender: String(payload.From).trim(),
+      subject: String(payload.Subject || '(no subject)').trim(),
+      body: String(
+        payload.TextBody ||
+        (typeof payload.HtmlBody === 'string' ? payload.HtmlBody.replace(/<[^>]+>/g, ' ') : '') ||
+        ''
+      ).trim(),
+    }
+  }
+
+  // SendGrid: { envelope: { from }, headers: { Subject }, text }
+  if (payload.envelope && typeof payload.envelope === 'object') {
+    const env = payload.envelope as Record<string, unknown>
+    return {
+      sender: String(env.from || '').trim(),
+      subject: String(payload.subject || '(no subject)').trim(),
+      body: String(payload.text || '').trim(),
+    }
+  }
+
+  return null
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+function isAuthorised(req: NextRequest): boolean {
+  const secret = process.env.WEBHOOK_SECRET
+  if (!secret) return true  // no secret configured = open (backwards-compat during setup)
+  const header = req.headers.get('x-webhook-secret') || req.headers.get('authorization')?.replace('Bearer ', '')
+  return header === secret
+}
+
+// ─── DB ───────────────────────────────────────────────────────────────────────
 
 function getDb() {
   return neon(process.env.DATABASE_URL!)
@@ -60,12 +113,8 @@ async function ensureTable() {
 }
 
 async function logEmail(
-  sender: string,
-  subject: string,
-  bodyPreview: string,
-  responseSent: string,
-  flagged: boolean,
-  flagKeywords: string[]
+  sender: string, subject: string, bodyPreview: string,
+  responseSent: string, flagged: boolean, flagKeywords: string[]
 ) {
   const sql = getDb()
   await sql`
@@ -74,16 +123,21 @@ async function logEmail(
   `
 }
 
+// ─── Core logic ───────────────────────────────────────────────────────────────
+
+function isFlagged(subject: string, body: string): { flagged: boolean; keywords: string[] } {
+  const text = `${subject} ${body}`.toLowerCase()
+  const found = ENTERPRISE_KEYWORDS.filter(kw => text.includes(kw))
+  return { flagged: found.length > 0, keywords: found }
+}
+
 async function generateResponse(senderEmail: string, subject: string, body: string): Promise<string> {
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY! })
   const msg = await client.messages.create({
     model: 'claude-opus-4-5',
     max_tokens: 400,
     system: SYSTEM_PROMPT,
-    messages: [{
-      role: 'user',
-      content: `Email from: ${senderEmail}\nSubject: ${subject}\n\n${body}`
-    }]
+    messages: [{ role: 'user', content: `Email from: ${senderEmail}\nSubject: ${subject}\n\n${body}` }]
   })
   return (msg.content[0] as { type: string; text: string }).text
 }
@@ -99,29 +153,31 @@ async function sendEmail(to: string, subject: string, body: string) {
   })
 }
 
+// ─── Route ────────────────────────────────────────────────────────────────────
+
 export async function POST(req: NextRequest) {
+  if (!isAuthorised(req)) {
+    return NextResponse.json({ ok: false, error: 'unauthorised' }, { status: 401 })
+  }
+
   try {
-    const payload = await req.json()
+    const rawPayload = await req.json() as Record<string, unknown>
+    const email = normalisePayload(rawPayload)
 
-    const sender: string = payload.from || payload.sender || ''
-    const subject: string = payload.subject || '(no subject)'
-    const body: string = payload.text || payload.html?.replace(/<[^>]+>/g, ' ') || ''
-    const bodyPreview = body.slice(0, 500)
-
-    if (!sender) {
-      return NextResponse.json({ ok: false, error: 'no sender' }, { status: 400 })
+    if (!email || !email.sender) {
+      return NextResponse.json({ ok: false, error: 'could not parse sender from payload' }, { status: 400 })
     }
+
+    const { sender, subject, body } = email
+    const bodyPreview = body.slice(0, 500)
 
     await ensureTable()
 
     const { flagged, keywords } = isFlagged(subject, body)
 
-    let responseSent: string
-    if (flagged) {
-      responseSent = HOLDING_RESPONSE
-    } else {
-      responseSent = await generateResponse(sender, subject, body)
-    }
+    const responseSent = flagged
+      ? HOLDING_RESPONSE
+      : await generateResponse(sender, subject, body)
 
     await sendEmail(sender, subject, responseSent)
     await logEmail(sender, subject, bodyPreview, responseSent, flagged, keywords)
@@ -131,4 +187,9 @@ export async function POST(req: NextRequest) {
     console.error('Support inbound error:', err)
     return NextResponse.json({ ok: false, error: String(err) }, { status: 500 })
   }
+}
+
+// Health check — confirms the endpoint is reachable
+export async function GET() {
+  return NextResponse.json({ ok: true, service: 'HiveAdminSupport inbound', ready: true })
 }
