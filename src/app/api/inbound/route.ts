@@ -131,8 +131,9 @@ async function logEmail(
 
 // ─── Core logic ───────────────────────────────────────────────────────────────
 
-function isFlagged(subject: string, body: string): { flagged: boolean; keywords: string[] } {
-  const text = `${subject} ${body}`.toLowerCase()
+function isFlagged(subject: string, body: string, rawFallback = ''): { flagged: boolean; keywords: string[] } {
+  // Scan subject + body + full raw payload (handles MIME-encoded or empty body from CF Worker)
+  const text = `${subject} ${body} ${rawFallback}`.toLowerCase()
   const found = ENTERPRISE_KEYWORDS.filter(kw => text.includes(kw))
   return { flagged: found.length > 0, keywords: found }
 }
@@ -179,7 +180,9 @@ export async function POST(req: NextRequest) {
 
     await ensureTable()
 
-    const { flagged, keywords } = isFlagged(subject, body)
+    // rawFallback ensures keywords in MIME-encoded or partially-extracted bodies are still caught
+    const rawFallback = JSON.stringify(rawPayload)
+    const { flagged, keywords } = isFlagged(subject, body, rawFallback)
 
     const responseSent = flagged ? HOLDING_RESPONSE : DEFAULT_RESPONSE
 

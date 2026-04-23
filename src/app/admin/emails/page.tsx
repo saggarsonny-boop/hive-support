@@ -1,21 +1,11 @@
 import { cookies } from 'next/headers'
 import { neon } from '@neondatabase/serverless'
 import { redirect } from 'next/navigation'
+import EmailTable, { type SupportEmail } from './EmailTable'
 
 const ADMIN_PASSWORD = 'hivebees'
 const COOKIE_NAME = 'hive_admin_auth'
 const COOKIE_VALUE = 'hivebees_ok'
-
-interface SupportEmail {
-  id: string
-  sender: string
-  subject: string | null
-  body_preview: string | null
-  response_sent: string | null
-  flagged: boolean
-  flag_keywords: string[] | null
-  created_at: string
-}
 
 async function loginAction(formData: FormData) {
   'use server'
@@ -141,77 +131,10 @@ export default async function AdminEmailsPage() {
           </div>
         )}
 
-        {emails.length > 0 && (
-          <div style={{ overflowX: 'auto' }}>
-            <table style={{
-              width: '100%', borderCollapse: 'collapse', fontSize: 13,
-              background: '#fff', borderRadius: 10, overflow: 'hidden',
-              boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-            }}>
-              <thead>
-                <tr style={{ background: '#1e2d3d' }}>
-                  {['Timestamp', 'From', 'Subject', 'Body preview', 'Response', 'Flagged'].map(h => (
-                    <th key={h} style={{
-                      padding: '10px 14px', textAlign: 'left', color: 'rgba(255,255,255,0.7)',
-                      fontWeight: 600, fontSize: 11, letterSpacing: '0.06em', textTransform: 'uppercase',
-                      whiteSpace: 'nowrap',
-                    }}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {emails.map((email, idx) => {
-                  const flagRow = email.flagged
-                  return (
-                    <tr key={email.id} style={{
-                      background: flagRow
-                        ? 'rgba(200,150,10,0.08)'
-                        : idx % 2 === 0 ? '#fff' : '#fafaf8',
-                      borderBottom: `1px solid ${flagRow ? 'rgba(200,150,10,0.2)' : '#f0ede8'}`,
-                    }}>
-                      <td style={{ padding: '10px 14px', color: '#6b7280', whiteSpace: 'nowrap', fontSize: 12 }}>
-                        {new Date(email.created_at).toLocaleString('en-US', {
-                          day: '2-digit', month: 'short', year: 'numeric',
-                          hour: 'numeric', minute: '2-digit',
-                          hour12: true,
-                          timeZone: 'America/Chicago',
-                          timeZoneName: 'short',
-                        })}
-                      </td>
-                      <td style={{ padding: '10px 14px', color: '#1e2d3d', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {email.sender}
-                      </td>
-                      <td style={{ padding: '10px 14px', color: '#1e2d3d', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>
-                        {email.subject ?? '—'}
-                      </td>
-                      <td style={{ padding: '10px 14px', color: '#6b7280', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {email.body_preview ?? '—'}
-                      </td>
-                      <td style={{ padding: '10px 14px', color: '#6b7280', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        <span title={email.response_sent ?? ''} style={{ cursor: 'help' }}>
-                          {email.response_sent ? email.response_sent.slice(0, 80) + (email.response_sent.length > 80 ? '…' : '') : '—'}
-                        </span>
-                      </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center' }}>
-                        {email.flagged ? (
-                          <span style={{
-                            background: '#c8960a', color: '#fff', borderRadius: 4,
-                            padding: '2px 8px', fontSize: 11, fontWeight: 700,
-                          }} title={email.flag_keywords?.join(', ')}>⚑ YES</span>
-                        ) : (
-                          <span style={{ color: '#d1d5db', fontSize: 12 }}>—</span>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+        {emails.length > 0 && <EmailTable emails={emails} />}
 
         <p style={{ marginTop: 20, color: '#9ca3af', fontSize: 11, textAlign: 'center' }}>
-          Flagged emails require Sonny&apos;s attention — hover ⚑ to see matched keywords.
+          Click any row to read the full email and auto-response. ⚑ = enterprise flag.
           Showing latest {emails.length}.
         </p>
       </div>
