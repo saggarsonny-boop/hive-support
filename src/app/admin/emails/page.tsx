@@ -170,9 +170,12 @@ export default async function AdminEmailsPage() {
                       borderBottom: `1px solid ${flagRow ? 'rgba(200,150,10,0.2)' : '#f0ede8'}`,
                     }}>
                       <td style={{ padding: '10px 14px', color: '#6b7280', whiteSpace: 'nowrap', fontSize: 12 }}>
-                        {new Date(email.created_at).toLocaleString('en-GB', {
+                        {new Date(email.created_at).toLocaleString('en-US', {
                           day: '2-digit', month: 'short', year: 'numeric',
-                          hour: '2-digit', minute: '2-digit',
+                          hour: 'numeric', minute: '2-digit',
+                          hour12: true,
+                          timeZone: 'America/Chicago',
+                          timeZoneName: 'short',
                         })}
                       </td>
                       <td style={{ padding: '10px 14px', color: '#1e2d3d', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

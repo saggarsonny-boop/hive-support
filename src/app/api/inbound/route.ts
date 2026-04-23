@@ -6,33 +6,38 @@ import { neon } from '@neondatabase/serverless'
 export const maxDuration = 60
 
 const ENTERPRISE_KEYWORDS = [
-  'procurement', 'government', 'nhs', 'irs', 'ministry', 'contract',
-  'partnership', 'license', 'licence', 'tender', 'rfp', 'enterprise',
-  'institutional', 'bulk', 'organisation', 'organization', 'department',
+  // Government & regulatory
+  'procurement', 'government', 'federal', 'ministry', 'department', 'agency', 'court',
+  'nhs', 'hmrc', 'irs', 'dvla', 'fda', 'cdc', 'mhra', 'ema',
+  // Healthcare
+  'hospital', 'clinical', 'healthcare system', 'health trust',
+  // Commercial enterprise
+  'contract', 'partnership', 'tender', 'rfp', 'enterprise', 'institutional',
+  'license', 'licence', 'bulk', 'organisation', 'organization',
+  // Consulting
   'consult', 'consulting', 'advisory', 'engagement', 'retainer',
+  // Big tech / enterprise software
+  'samsung', 'apple', 'google', 'microsoft', 'adobe',
+  'docusign', 'oracle', 'sap', 'salesforce',
 ]
 
-const HOLDING_RESPONSE = `Thank you for reaching out.
+const DEFAULT_RESPONSE = `Thank you for getting in touch with Universal Document Incorporated.
 
-This has been flagged for personal attention and Sonny will respond within 24 hours.
+We have received your message and will respond within 24 hours.
 
-— The Hive Team`
+In the meantime, the UD Reader, Converter, and Validator are all available free at universaldocument.hive.baby — along with the full technical white paper.
 
-const SYSTEM_PROMPT = `You are the Hive support voice. Hive is a social experiment — a collection of free, AI-powered tools built for humans. No ads, no investors, no agenda.
+Universal Document Incorporated
+hive@hive.baby
+universaldocument.hive.baby`
 
-When responding to an email:
-- Be warm, genuine, and concise (3–5 sentences max)
-- Acknowledge what they've said specifically
-- Give a direct, useful answer if you can
-- If it's a bug report: thank them genuinely, say it's been noted
-- If it's feedback/praise: receive it warmly, don't be sycophantic
-- If it's a question about a specific engine: answer briefly and point them to hive.baby
-- If uncertain: be honest that you're not sure and invite them to reply
-- Never make promises about timelines, features, or commitments
-- Sign off as "The Hive Team" — never use a personal name
-- Keep the Hive voice: direct, human, no corporate fluff
+const HOLDING_RESPONSE = `Thank you for your interest in Universal Document™ (UD).
 
-Do not include greetings or preambles — start with the response directly.`
+Your message has been flagged for personal attention and Sonny Saggar will respond directly within 24 hours.
+
+Universal Document Incorporated
+hive@hive.baby
+universaldocument.hive.baby`
 
 // ─── Payload normalisation ────────────────────────────────────────────────────
 // Accepts: Cloudflare Email Worker JSON, Resend inbound, Postmark, SendGrid, raw
@@ -176,9 +181,7 @@ export async function POST(req: NextRequest) {
 
     const { flagged, keywords } = isFlagged(subject, body)
 
-    const responseSent = flagged
-      ? HOLDING_RESPONSE
-      : await generateResponse(sender, subject, body)
+    const responseSent = flagged ? HOLDING_RESPONSE : DEFAULT_RESPONSE
 
     await sendEmail(sender, subject, responseSent)
     await logEmail(sender, subject, bodyPreview, responseSent, flagged, keywords)
