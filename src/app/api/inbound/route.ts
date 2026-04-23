@@ -9,11 +9,12 @@ const ENTERPRISE_KEYWORDS = [
   'procurement', 'government', 'nhs', 'irs', 'ministry', 'contract',
   'partnership', 'license', 'licence', 'tender', 'rfp', 'enterprise',
   'institutional', 'bulk', 'organisation', 'organization', 'department',
+  'consult', 'consulting', 'advisory', 'engagement', 'retainer',
 ]
 
-const HOLDING_RESPONSE = `Thank you for reaching out to Hive.
+const HOLDING_RESPONSE = `Thank you for reaching out.
 
-This has been noted and will receive personal attention.
+This has been flagged for personal attention and Sonny will respond within 24 hours.
 
 — The Hive Team`
 
