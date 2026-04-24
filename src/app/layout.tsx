@@ -2,10 +2,17 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'HiveAdminSupport',
-  description: 'Hive support system. Auto-acknowledge and triage support emails.',
-  robots: 'noindex',
+  title: 'Hive Priority Support — Human Help Within 24 Hours',
+  description: 'Priority support for all Hive engines and Universal Document™ tools. Real humans, not bots. Response within 24 hours. From $1.99/month.',
+  keywords: 'hive support, universal document support, priority support, hive.baby help',
   icons: { icon: '/favicon.svg', apple: '/favicon.svg' },
+  openGraph: {
+    title: 'Hive Priority Support — Human Help Within 24 Hours',
+    description: 'Real help from real humans across all Hive engines and Universal Document™ tools.',
+    url: 'https://support.hive.baby',
+    siteName: 'Hive',
+    type: 'website',
+  },
 }
 
 const NAV_STYLE: React.CSSProperties = { fontSize: '11px', color: 'rgba(180,200,225,0.55)', textDecoration: 'none' }
