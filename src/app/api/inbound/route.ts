@@ -39,6 +39,8 @@ Universal Document Incorporated
 hive@hive.baby
 universaldocument.hive.baby`
 
+const SYSTEM_PROMPT = `You are Hive support. Reply warmly and concisely to support emails on behalf of Universal Document Incorporated and the Hive ecosystem. Keep replies under 150 words. Do not make promises about timelines or features unless certain. Always sign off as "Hive Support — hive@hive.baby".`
+
 // ─── Payload normalisation ────────────────────────────────────────────────────
 // Accepts: Cloudflare Email Worker JSON, Resend inbound, Postmark, SendGrid, raw
 
