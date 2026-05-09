@@ -1,0 +1,23 @@
+name: HiveOps PR audit
+
+# Subscribes HiveAdminSupport to the cross-repo HiveOps PR-audit
+# guardrail. The reusable workflow lives in saggarsonny-boop/hivebaby
+# and runs the canonical hive-ops + hive-finalize pipeline against
+# this PR's branch, computes a baseline verdict from main of this
+# repo, and posts the delta as a PR comment. See
+# HIVE_CONSTITUTION.md §V [PR_GUARDRAIL] in saggarsonny-boop/hivebaby
+# for the canonical pattern.
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  pull-requests: write
+  contents: read
+
+jobs:
+  audit:
+    uses: saggarsonny-boop/hivebaby/.github/workflows/hive-ops-pr-audit-reusable.yml@main
+    with:
+      slug: hive-support
