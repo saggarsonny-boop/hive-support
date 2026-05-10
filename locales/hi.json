@@ -1,0 +1,6 @@
+{
+  "engine": {
+    "name": "hive-support"
+  },
+  "greeting": "[hi] Hello from hive-support"
+}
