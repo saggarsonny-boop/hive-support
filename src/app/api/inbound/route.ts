@@ -21,6 +21,8 @@ const ENTERPRISE_KEYWORDS = [
   'docusign', 'oracle', 'sap', 'salesforce',
 ]
 
+const TOM_ALLOWED_ENGINES = ['hiveimr', 'hiveplainscan']
+
 const DEFAULT_RESPONSE = `Thank you for getting in touch with Universal Document Incorporated.
 
 We have received your message and will respond within 24 hours.
@@ -118,6 +120,17 @@ async function ensureTable() {
       created_at TIMESTAMPTZ DEFAULT NOW()
     )
   `
+  await sql`
+    CREATE TABLE IF NOT EXISTS ag_code_payloads (
+      id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      sender TEXT NOT NULL,
+      subject TEXT,
+      body TEXT,
+      target_engine TEXT,
+      status TEXT DEFAULT 'pending',
+      created_at TIMESTAMPTZ DEFAULT NOW()
+    )
+  `
 }
 
 async function logEmail(
@@ -128,6 +141,14 @@ async function logEmail(
   await sql`
     INSERT INTO support_emails (sender, subject, body_preview, response_sent, flagged, flag_keywords)
     VALUES (${sender}, ${subject}, ${bodyPreview}, ${responseSent}, ${flagged}, ${flagKeywords})
+  `
+}
+
+async function logAgCodePayload(sender: string, subject: string, body: string, targetEngine: string) {
+  const sql = getDb()
+  await sql`
+    INSERT INTO ag_code_payloads (sender, subject, body, target_engine)
+    VALUES (${sender}, ${subject}, ${body}, ${targetEngine})
   `
 }
 
@@ -151,15 +172,22 @@ async function generateResponse(senderEmail: string, subject: string, body: stri
   return (msg.content[0] as { type: string; text: string }).text
 }
 
-async function sendEmail(to: string, subject: string, body: string) {
+async function sendEmail(to: string, subject: string, body: string, cc?: string) {
   const resend = new Resend(process.env.RESEND_API_KEY!)
   const replySubject = subject.toLowerCase().startsWith('re:') ? subject : `Re: ${subject}`
-  await resend.emails.send({
+  
+  const emailOptions: any = {
     from: 'Hive <hive@hive.baby>',
     to,
     subject: replySubject,
     text: body,
-  })
+  }
+  
+  if (cc) {
+    emailOptions.cc = cc
+  }
+
+  await resend.emails.send(emailOptions)
 }
 
 // ─── Route ────────────────────────────────────────────────────────────────────
@@ -184,6 +212,34 @@ export async function POST(req: NextRequest) {
 
     // rawFallback ensures keywords in MIME-encoded or partially-extracted bodies are still caught
     const rawFallback = JSON.stringify(rawPayload)
+
+    // Intercept [AG-CODE] payloads
+    const combinedText = `${subject} ${body} ${rawFallback}`.toUpperCase()
+    if (combinedText.includes('[AG-CODE]')) {
+      // Parse engine name, e.g. [AG-CODE] HiveIMR
+      const match = subject.match(/\[AG-CODE\]\s*([a-zA-Z0-9_-]+)/i)
+      const targetEngine = match ? match[1].toLowerCase() : ''
+      
+      if (!targetEngine) {
+        const rejectMessage = `Your code payload was rejected.\n\nReason: No engine name was found in the subject line.\nPlease ensure your subject follows this format: [AG-CODE] EngineName\n\n- Antigravity (Lead Engineer)`
+        await sendEmail(sender, subject, rejectMessage, 'sonny@hive.baby')
+        return NextResponse.json({ ok: true, ag_code: true, status: 'rejected_no_engine' })
+      }
+      
+      if (!TOM_ALLOWED_ENGINES.includes(targetEngine)) {
+        const rejectMessage = `Your code payload for "${match![1]}" was rejected.\n\nReason: You are not currently authorized to submit code for this engine. Your approved engines are: HiveIMR, HivePlainScan.\n\n- Antigravity (Lead Engineer)`
+        await sendEmail(sender, subject, rejectMessage, 'sonny@hive.baby')
+        return NextResponse.json({ ok: true, ag_code: true, status: 'rejected_unauthorized_engine' })
+      }
+      
+      await logAgCodePayload(sender, subject, body, targetEngine)
+      
+      const ackMessage = `Code payload for "${match![1]}" successfully received and stored securely in the Hive database for Antigravity processing.\n\nSender: ${sender}\nSubject: ${subject}\n\n- Antigravity (Lead Engineer)`
+      await sendEmail(sender, subject, ackMessage, 'sonny@hive.baby')
+      
+      return NextResponse.json({ ok: true, ag_code: true, status: 'accepted' })
+    }
+
     const { flagged, keywords } = isFlagged(subject, body, rawFallback)
 
     const responseSent = flagged ? HOLDING_RESPONSE : DEFAULT_RESPONSE
